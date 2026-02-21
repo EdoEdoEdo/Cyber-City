@@ -1,0 +1,49 @@
+/* Global Styles */
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html, body, #root {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background-color: #0a0a12;
+}
+
+/* Prevent text selection during gameplay */
+body {
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+  touch-action: none;
+}
+
+/* Button hover effects */
+button:hover {
+  background-color: #00ffff22 !important;
+  box-shadow: 0 0 20px #00ffff44;
+}
+
+button:active {
+  transform: scale(0.98);
+}
+
+/* Custom scrollbar for any overflow areas */
+::-webkit-scrollbar {
+  width: 4px;
+}
+
+::-webkit-scrollbar-track {
+  background: #0a0a12;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #00ffff44;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #00ffff66;
+}
