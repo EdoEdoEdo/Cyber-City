@@ -1,6 +1,6 @@
 /**
  * Mobile Controls Component
- * Joystick left + Action buttons right
+ * Joystick left (movement only) + 3 Action buttons right (Jump, Shoot, Shield)
  */
 
 import React, { useRef, useState, useCallback, useEffect } from 'react';
@@ -11,19 +11,17 @@ const isMobile = () => {
     return 'ontouchstart' in window || navigator.maxTouchPoints > 0;
 };
 
-// Joystick Component
-function Joystick({ onMove, onJump }) {
+// Joystick Component - SOLO movimento orizzontale
+function Joystick({ onMove }) {
     const containerRef = useRef(null);
     const [position, setPosition] = useState({ x: 0, y: 0 });
     const [isActive, setIsActive] = useState(false);
     const touchIdRef = useRef(null);
     const centerRef = useRef({ x: 0, y: 0 });
-    const hasJumpedRef = useRef(false);
 
     const JOYSTICK_SIZE = 120;
     const KNOB_SIZE = 50;
     const MAX_DISTANCE = (JOYSTICK_SIZE - KNOB_SIZE) / 2;
-    const JUMP_THRESHOLD = -0.5; // Soglia per il salto (verso l'alto)
 
     const handleTouchStart = useCallback((e) => {
         e.preventDefault();
@@ -41,9 +39,7 @@ function Joystick({ onMove, onJump }) {
 
         touchIdRef.current = touch.identifier;
         setIsActive(true);
-        hasJumpedRef.current = false;
 
-        // Calcola posizione iniziale
         updatePosition(touch.clientX, touch.clientY);
     }, []);
 
@@ -53,7 +49,6 @@ function Joystick({ onMove, onJump }) {
             const dy = clientY - centerRef.current.y;
             const distance = Math.sqrt(dx * dx + dy * dy);
 
-            // Limita al raggio massimo
             const clampedDistance = Math.min(distance, MAX_DISTANCE);
             const angle = Math.atan2(dy, dx);
 
@@ -62,21 +57,10 @@ function Joystick({ onMove, onJump }) {
 
             setPosition({ x, y });
 
-            // Movimento orizzontale
+            // Solo movimento orizzontale
             onMove(x);
-
-            // Salto quando si va verso l'alto
-            if (y < JUMP_THRESHOLD && !hasJumpedRef.current) {
-                onJump();
-                hasJumpedRef.current = true;
-            }
-
-            // Reset jump quando si torna giù
-            if (y > JUMP_THRESHOLD - 0.1) {
-                hasJumpedRef.current = false;
-            }
         },
-        [onMove, onJump, MAX_DISTANCE, JUMP_THRESHOLD],
+        [onMove, MAX_DISTANCE],
     );
 
     const handleTouchMove = useCallback(
@@ -159,19 +143,25 @@ function Joystick({ onMove, onJump }) {
                     transform: `translate(${position.x * MAX_DISTANCE}px, ${position.y * MAX_DISTANCE}px)`,
                 }}
             />
-
-            {/* Up indicator */}
-            <div style={styles.jumpIndicator}>↑</div>
         </div>
     );
 }
 
-// Action Button Component
-function ActionButton({ label, color, onPress, onRelease }) {
+// Action Button Component - Con touch ID tracking per precisione
+function ActionButton({ label, color, icon, onPress, onRelease, size = 70 }) {
+    const touchIdRef = useRef(null);
+    const buttonRef = useRef(null);
+    const [isPressed, setIsPressed] = useState(false);
+
     const handleTouchStart = useCallback(
         (e) => {
             e.preventDefault();
             e.stopPropagation();
+
+            if (touchIdRef.current !== null) return;
+
+            touchIdRef.current = e.changedTouches[0].identifier;
+            setIsPressed(true);
             onPress();
         },
         [onPress],
@@ -181,22 +171,58 @@ function ActionButton({ label, color, onPress, onRelease }) {
         (e) => {
             e.preventDefault();
             e.stopPropagation();
+
+            const touch = Array.from(e.changedTouches).find(
+                (t) => t.identifier === touchIdRef.current,
+            );
+            if (!touch) return;
+
+            touchIdRef.current = null;
+            setIsPressed(false);
             onRelease();
         },
         [onRelease],
     );
 
+    useEffect(() => {
+        const button = buttonRef.current;
+        if (!button) return;
+
+        button.addEventListener('touchstart', handleTouchStart, {
+            passive: false,
+        });
+        button.addEventListener('touchend', handleTouchEnd, { passive: false });
+        button.addEventListener('touchcancel', handleTouchEnd, {
+            passive: false,
+        });
+
+        return () => {
+            button.removeEventListener('touchstart', handleTouchStart);
+            button.removeEventListener('touchend', handleTouchEnd);
+            button.removeEventListener('touchcancel', handleTouchEnd);
+        };
+    }, [handleTouchStart, handleTouchEnd]);
+
     return (
         <div
+            ref={buttonRef}
             style={{
                 ...styles.actionButton,
+                width: size,
+                height: size,
                 borderColor: color,
-                boxShadow: `0 0 15px ${color}44, inset 0 0 10px ${color}22`,
+                boxShadow: isPressed
+                    ? `0 0 25px ${color}, inset 0 0 20px ${color}44`
+                    : `0 0 15px ${color}44, inset 0 0 10px ${color}22`,
+                backgroundColor: isPressed
+                    ? `${color}33`
+                    : 'rgba(0, 0, 0, 0.5)',
+                transform: isPressed ? 'scale(0.95)' : 'scale(1)',
             }}
-            onTouchStart={handleTouchStart}
-            onTouchEnd={handleTouchEnd}
-            onTouchCancel={handleTouchEnd}
         >
+            {icon && (
+                <span style={{ ...styles.buttonIcon, color }}>{icon}</span>
+            )}
             <span style={{ ...styles.buttonLabel, color }}>{label}</span>
         </div>
     );
@@ -211,6 +237,7 @@ export function MobileControls() {
         setIsMobileDevice(isMobile());
     }, []);
 
+    // Joystick - solo movimento
     const handleMove = useCallback(
         (x) => {
             if (x < -0.3) {
@@ -224,11 +251,16 @@ export function MobileControls() {
         [setInput],
     );
 
-    const handleJump = useCallback(() => {
+    // Jump button
+    const handleJumpPress = useCallback(() => {
         setInput({ jumpPressed: true, jump: true });
-        setTimeout(() => setInput({ jump: false }), 100);
     }, [setInput]);
 
+    const handleJumpRelease = useCallback(() => {
+        setInput({ jump: false });
+    }, [setInput]);
+
+    // Shoot button
     const handleShootPress = useCallback(() => {
         setInput({ shootPressed: true, shoot: true });
     }, [setInput]);
@@ -237,6 +269,7 @@ export function MobileControls() {
         setInput({ shoot: false });
     }, [setInput]);
 
+    // Shield button
     const handleShieldPress = useCallback(() => {
         setInput({ shieldPressed: true, shield: true });
     }, [setInput]);
@@ -251,23 +284,42 @@ export function MobileControls() {
         <div style={styles.container}>
             {/* Left side - Joystick */}
             <div style={styles.leftZone}>
-                <Joystick onMove={handleMove} onJump={handleJump} />
+                <Joystick onMove={handleMove} />
             </div>
 
-            {/* Right side - Action buttons */}
+            {/* Right side - 3 Action buttons */}
             <div style={styles.rightZone}>
-                <ActionButton
-                    label="SHOOT"
-                    color="#00ffff"
-                    onPress={handleShootPress}
-                    onRelease={handleShootRelease}
-                />
-                <ActionButton
-                    label="SHIELD"
-                    color="#ff0080"
-                    onPress={handleShieldPress}
-                    onRelease={handleShieldRelease}
-                />
+                {/* Top row: Jump */}
+                <div style={styles.topButton}>
+                    <ActionButton
+                        label="JUMP"
+                        icon="↑"
+                        color="#ffff00"
+                        onPress={handleJumpPress}
+                        onRelease={handleJumpRelease}
+                        size={60}
+                    />
+                </div>
+
+                {/* Bottom row: Shoot + Shield */}
+                <div style={styles.bottomButtons}>
+                    <ActionButton
+                        label="SHOOT"
+                        icon="●"
+                        color="#00ffff"
+                        onPress={handleShootPress}
+                        onRelease={handleShootRelease}
+                        size={70}
+                    />
+                    <ActionButton
+                        label="SHIELD"
+                        icon="◆"
+                        color="#ff0080"
+                        onPress={handleShieldPress}
+                        onRelease={handleShieldRelease}
+                        size={70}
+                    />
+                </div>
             </div>
         </div>
     );
@@ -279,10 +331,10 @@ const styles = {
         bottom: 0,
         left: 0,
         right: 0,
-        height: '180px',
+        height: '200px',
         display: 'flex',
         justifyContent: 'space-between',
-        alignItems: 'center',
+        alignItems: 'flex-end',
         padding: '0 20px 20px 20px',
         pointerEvents: 'none',
         zIndex: 200,
@@ -290,12 +342,25 @@ const styles = {
 
     leftZone: {
         pointerEvents: 'auto',
+        touchAction: 'none',
     },
 
     rightZone: {
         display: 'flex',
-        gap: '15px',
+        flexDirection: 'column',
+        alignItems: 'flex-end',
+        gap: '10px',
         pointerEvents: 'auto',
+        touchAction: 'none',
+    },
+
+    topButton: {
+        marginBottom: '5px',
+    },
+
+    bottomButtons: {
+        display: 'flex',
+        gap: '15px',
     },
 
     joystickContainer: {
@@ -304,6 +369,7 @@ const styles = {
         alignItems: 'center',
         justifyContent: 'center',
         transition: 'opacity 0.2s',
+        touchAction: 'none',
     },
 
     joystickBase: {
@@ -324,31 +390,26 @@ const styles = {
         transition: 'transform 0.05s ease-out',
     },
 
-    jumpIndicator: {
-        position: 'absolute',
-        top: '-25px',
-        color: '#00ffff',
-        fontSize: '14px',
-        fontFamily: "'Courier New', monospace",
-        opacity: 0.5,
-    },
-
     actionButton: {
-        width: '70px',
-        height: '70px',
         borderRadius: '50%',
-        backgroundColor: 'rgba(0, 0, 0, 0.5)',
         border: '2px solid',
         display: 'flex',
+        flexDirection: 'column',
         alignItems: 'center',
         justifyContent: 'center',
         userSelect: 'none',
         WebkitUserSelect: 'none',
         touchAction: 'none',
+        transition: 'all 0.1s ease',
+    },
+
+    buttonIcon: {
+        fontSize: '18px',
+        marginBottom: '2px',
     },
 
     buttonLabel: {
-        fontSize: '10px',
+        fontSize: '8px',
         fontFamily: "'Courier New', monospace",
         fontWeight: 'bold',
         letterSpacing: '1px',

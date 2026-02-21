@@ -42,17 +42,24 @@ const PALETTE = {
 export function Background() {
     const cameraPos = useGameStore(selectCamera);
     const buildingsRef = useRef();
+    const rainRef = useRef();
+    const isMobile = 'ontouchstart' in window;
 
     useFrame(() => {
         if (buildingsRef.current) {
             buildingsRef.current.position.x = cameraPos.position.x * 0.15;
+        }
+        if (rainRef.current) {
+            rainRef.current.position.x = cameraPos.position.x;
         }
     });
 
     return (
         <group>
             <StreetBelow />
-            <RainLines count={800} />
+            <group ref={rainRef}>
+                <RainLines count={isMobile ? 300 : 600} />
+            </group>
 
             {/* Main buildings group with parallax */}
             <group ref={buildingsRef} position={[0, 0, WORLD.PARALLAX.MID_BG]}>
