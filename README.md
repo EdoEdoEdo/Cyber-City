@@ -50,8 +50,8 @@ The project is designed as a **proof of concept** for:
 ### Desktop
 
 - **W / A / S / D** — Movement
-- **Mouse** — Aim
-- **Mouse Click** — Attack / Shoot
+- **X** — Shoot
+- **Z** — Shield
 
 ### Mobile
 
