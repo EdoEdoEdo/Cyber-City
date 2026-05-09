@@ -1,5 +1,9 @@
 # 🌃 Cyber City
 
+![Cyber City preview](public/preview.png)
+
+🎮 **[Play the demo](https://www.edoedoedo.it/experiments/cyber-city/)**
+
 A **cyberpunk-style 3D action game demo** built with **React**, **Three.js**, and **React Three Fiber**, set in a futuristic neon-lit city featuring combat, enemies, advanced visual effects, and mobile-optimized controls.
 
 ---
