@@ -7,10 +7,11 @@ import React, { useRef, useMemo, Suspense } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { useGLTF } from '@react-three/drei';
 import { useGameStore, selectCamera } from '../../store/gameStore';
+import { DRACO_DECODER_PATH } from '../../utils/gltf';
 
 // ScifiLamp sub-component
 function ScifiLamp({ position, scale = 1 }) {
-    const { scene } = useGLTF('models/scifi_lamp.glb');
+    const { scene } = useGLTF('models/scifi_lamp.glb', DRACO_DECODER_PATH);
     const clonedScene = useMemo(() => scene.clone(), [scene]);
 
     return (
@@ -231,4 +232,4 @@ export function StreetBelow() {
 }
 
 // Preload
-useGLTF.preload('models/scifi_lamp.glb');
+useGLTF.preload('models/scifi_lamp.glb', DRACO_DECODER_PATH);

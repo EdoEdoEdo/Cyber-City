@@ -278,6 +278,15 @@ export function MobileControls() {
         setInput({ shield: false });
     }, [setInput]);
 
+    // Dash button
+    const handleDashPress = useCallback(() => {
+        setInput({ dashPressed: true, dash: true });
+    }, [setInput]);
+
+    const handleDashRelease = useCallback(() => {
+        setInput({ dash: false });
+    }, [setInput]);
+
     if (!isMobileDevice) return null;
 
     return (
@@ -289,8 +298,16 @@ export function MobileControls() {
 
             {/* Right side - 3 Action buttons */}
             <div style={styles.rightZone}>
-                {/* Top row: Jump */}
+                {/* Top row: Jump + Dash */}
                 <div style={styles.topButton}>
+                    <ActionButton
+                        label="DASH"
+                        icon="»"
+                        color="#ff8800"
+                        onPress={handleDashPress}
+                        onRelease={handleDashRelease}
+                        size={55}
+                    />
                     <ActionButton
                         label="JUMP"
                         icon="↑"
@@ -355,6 +372,8 @@ const styles = {
     },
 
     topButton: {
+        display: 'flex',
+        gap: '15px',
         marginBottom: '5px',
     },
 

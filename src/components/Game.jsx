@@ -3,26 +3,42 @@
  * Main game assembly - combines all components and systems
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, lazy, Suspense } from 'react';
 import { Canvas } from '@react-three/fiber';
 import { Preload } from '@react-three/drei';
 import { Player } from './Player';
 import { Enemies } from './Enemy';
 import { Projectiles } from './Projectiles';
+import { Sparks } from './Sparks';
+import { Pickups } from './Pickups';
 import { Level } from './Level';
 import { Background } from './Background';
 import { GameSystems } from './GameSystems';
 import { UIOverlay } from './UIOverlay';
-import { CutsceneManager } from './CutsceneManager';
-import { IntroManager } from './IntroManager';
 import { IntroUI } from './IntroUI';
+import { OutroUI } from './OutroUI';
 import { MobileControls } from './MobileControls';
 import { LandscapeLock } from './LandscapeLock';
 import { LoadingScreen } from './LoadingScreen';
 import { DamageNumbers } from './DamageNumbers';
+import { ErrorBoundary } from './ErrorBoundary';
+import { PostFX } from './PostFX';
+import { SkipPrompt } from './SkipPrompt';
 import { useInputSystem } from '../systems/useInputSystem';
-import { CAMERA, COLORS } from '../constants/gameplayConstants';
+import { CAMERA, COLORS, GAME_PHASES } from '../constants/gameplayConstants';
 import { AudioManager } from './AudioManager';
+import { useGameStore, selectGamePhase } from '../store/gameStore';
+
+// Lazy: caricati solo dopo lo start (riducono il chunk iniziale)
+const CutsceneManager = lazy(() =>
+    import('./CutsceneManager').then((m) => ({ default: m.CutsceneManager })),
+);
+const IntroManager = lazy(() =>
+    import('./IntroManager').then((m) => ({ default: m.IntroManager })),
+);
+const OutroManager = lazy(() =>
+    import('./OutroManager').then((m) => ({ default: m.OutroManager })),
+);
 
 // Scene lighting setup
 function Lighting() {
@@ -61,8 +77,11 @@ function Scene() {
             <Player />
             <Enemies />
             <Projectiles />
+            <Pickups />
+            <Sparks />
             <DamageNumbers />
             <Preload all />
+            <PostFX />
         </>
     );
 }
@@ -80,6 +99,7 @@ function isLandscape() {
 // Main Game component
 export function Game() {
     const [started, setStarted] = useState(false);
+    const [showLoading, setShowLoading] = useState(true);
     const [audioEnabled, setAudioEnabled] = useState(false);
     const [canShow, setCanShow] = useState(false);
 
@@ -129,6 +149,9 @@ export function Game() {
 
         setStarted(true);
         setAudioEnabled(true);
+        // Keep LoadingScreen mounted so it can fade out smoothly,
+        // then unmount once the canvas has had time to fade in.
+        setTimeout(() => setShowLoading(false), 1100);
         console.log('🎮 Game started - Audio enabled');
     };
 
@@ -152,42 +175,62 @@ export function Game() {
             )}
 
             {/* FIX 3: Canvas sempre montato per preload reale */}
-            <Canvas
-                camera={{
-                    fov: CAMERA.FOV,
-                    near: CAMERA.NEAR,
-                    far: CAMERA.FAR,
-                    position: [0, CAMERA.VERTICAL_OFFSET, CAMERA.Z_POSITION],
-                }}
-                gl={{
-                    antialias: true,
-                    alpha: false,
-                }}
-                style={{
-                    ...styles.canvas,
-                    opacity: started ? 1 : 0,
-                    pointerEvents: started ? 'auto' : 'none',
-                }}
-            >
-                <color attach="background" args={[COLORS.DARK_BG]} />
-                <fog attach="fog" args={[COLORS.DARK_BG, 30, 100]} />
-                <Scene />
-                {started && <CutsceneManager />}
-                {started && <IntroManager />}
-            </Canvas>
+            <ErrorBoundary>
+                <Canvas
+                    camera={{
+                        fov: CAMERA.FOV,
+                        near: CAMERA.NEAR,
+                        far: CAMERA.FAR,
+                        position: [
+                            0,
+                            CAMERA.VERTICAL_OFFSET,
+                            CAMERA.Z_POSITION,
+                        ],
+                    }}
+                    gl={{
+                        antialias: true,
+                        alpha: false,
+                        powerPreference: 'high-performance',
+                    }}
+                    dpr={[1, 2]}
+                    style={{
+                        ...styles.canvas,
+                        opacity: started ? 1 : 0,
+                        transform: started ? 'scale(1)' : 'scale(1.04)',
+                        transition:
+                            'opacity 1200ms ease-out, transform 1600ms ease-out',
+                        pointerEvents: started ? 'auto' : 'none',
+                    }}
+                >
+                    <color attach="background" args={[COLORS.DARK_BG]} />
+                    <fog attach="fog" args={[COLORS.DARK_BG, 30, 100]} />
+                    <Scene />
+                    {started && (
+                        <Suspense fallback={null}>
+                            <CutsceneManager />
+                            <IntroManager />
+                            <OutroManager />
+                        </Suspense>
+                    )}
+                </Canvas>
+            </ErrorBoundary>
 
             {/* UI solo dopo start */}
             {started && (
                 <>
                     <UIOverlay />
                     <IntroUI />
+                    <OutroUI />
                     <MobileControls />
                     <LandscapeLock />
+                    <SkipController />
                 </>
             )}
 
-            {/* Loading Screen sopra tutto */}
-            {!started && <LoadingScreen onStart={handleStart} />}
+            {/* Loading Screen sopra tutto (resta montato durante il fade) */}
+            {showLoading && (
+                <LoadingScreen onStart={handleStart} exiting={started} />
+            )}
         </div>
     );
 }
@@ -205,3 +248,26 @@ const styles = {
         transition: 'opacity 0.5s ease',
     },
 };
+
+// ---- Skip controller ----
+// Chooses the right skip action per game phase. Lives outside Game()
+// so it can subscribe to gamePhase without re-rendering the whole tree.
+function SkipController() {
+    const phase = useGameStore(selectGamePhase);
+    const endIntro = useGameStore((s) => s.endIntro);
+    const endCutscene = useGameStore((s) => s.endCutscene);
+    const endOutro = useGameStore((s) => s.endOutro);
+
+    const enabled =
+        phase === GAME_PHASES.INTRO ||
+        phase === GAME_PHASES.CUTSCENE ||
+        phase === GAME_PHASES.OUTRO;
+
+    const onSkip = React.useCallback(() => {
+        if (phase === GAME_PHASES.INTRO) endIntro();
+        else if (phase === GAME_PHASES.CUTSCENE) endCutscene();
+        else if (phase === GAME_PHASES.OUTRO) endOutro();
+    }, [phase, endIntro, endCutscene, endOutro]);
+
+    return <SkipPrompt enabled={enabled} onSkip={onSkip} />;
+}

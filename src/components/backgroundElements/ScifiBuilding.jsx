@@ -6,9 +6,13 @@
 import React, { useMemo } from 'react';
 import { useGLTF } from '@react-three/drei';
 import * as THREE from 'three';
+import { DRACO_DECODER_PATH } from '../../utils/gltf';
 
 export function ScifiBuilding({ position, scale = 1, rotation = [0, 0, 0] }) {
-    const { scene } = useGLTF('models/scifi_building_1.glb');
+    const { scene } = useGLTF(
+        'models/scifi_building_1.glb',
+        DRACO_DECODER_PATH,
+    );
 
     const clonedScene = useMemo(() => {
         const clone = scene.clone();
@@ -48,4 +52,4 @@ export function ScifiBuilding({ position, scale = 1, rotation = [0, 0, 0] }) {
 }
 
 // Preload
-useGLTF.preload('models/scifi_building_1.glb');
+useGLTF.preload('models/scifi_building_1.glb', DRACO_DECODER_PATH);

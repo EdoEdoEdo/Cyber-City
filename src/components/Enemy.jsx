@@ -5,13 +5,18 @@
 
 import React, { useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
-import { useGameStore, selectCutscene } from '../store/gameStore';
+import {
+    useGameStore,
+    selectCutscene,
+    selectGamePhase,
+} from '../store/gameStore';
 import {
     ENEMY,
     ENEMY_STATES,
     COLORS,
     BOSS,
     BOSS_STATES,
+    GAME_PHASES,
 } from '../constants/gameplayConstants';
 
 export function Enemy({ enemyId }) {
@@ -19,10 +24,50 @@ export function Enemy({ enemyId }) {
         state.enemies.find((e) => e.id === enemyId),
     );
     const cutscene = useGameStore(selectCutscene);
+    const gamePhase = useGameStore(selectGamePhase);
 
     const groupRef = useRef();
     const alertLightRef = useRef();
     const shieldRef = useRef();
+    const flashMatRef = useRef();
+    const innerGroupRef = useRef();
+
+    // Hit flash: short white pulse + scale punch when health drops.
+    // Reads enemy.lastHitTime stamped by damageEnemy in the store.
+    useFrame(() => {
+        if (!enemy) return;
+
+        const now = performance.now();
+        const last = enemy.lastHitTime || 0;
+        const dt = (now - last) / 1000; // seconds since hit
+        const FLASH_DURATION = 0.12;
+
+        if (dt >= 0 && dt < FLASH_DURATION) {
+            const t = 1 - dt / FLASH_DURATION;
+            if (flashMatRef.current) {
+                flashMatRef.current.opacity = t * 0.85;
+            }
+            if (innerGroupRef.current) {
+                const punch = 1 + t * 0.08;
+                innerGroupRef.current.scale.set(
+                    enemy.facingRight ? punch : -punch,
+                    punch,
+                    1,
+                );
+            }
+        } else {
+            if (flashMatRef.current && flashMatRef.current.opacity !== 0) {
+                flashMatRef.current.opacity = 0;
+            }
+            if (innerGroupRef.current) {
+                innerGroupRef.current.scale.set(
+                    enemy.facingRight ? 1 : -1,
+                    1,
+                    1,
+                );
+            }
+        }
+    });
 
     // Animate alert light and shield
     useFrame((state) => {
@@ -53,6 +98,20 @@ export function Enemy({ enemyId }) {
     // Se il boss deve essere nascosto durante l'esplosione grande
     if (enemy.isBoss && cutscene.hideBoss) {
         return <BossDeathExplosion position={enemy.position} />;
+    }
+
+    // Boss morto: rendilo invisibile solo quando la fase di morte (death
+    // cutscene + outro + victory) ha già raccontato la sua morte. Tenerlo
+    // visibile durante BOSS_FIGHT/PLAYING/BOSS_DEATH evita il "buco" di
+    // 800ms tra il colpo letale e l'avvio della death cutscene, in cui
+    // altrimenti il boss sparisce e la cinematica zooma sul vuoto.
+    if (
+        enemy.isBoss &&
+        enemy.isDead &&
+        !cutscene.active &&
+        (gamePhase === GAME_PHASES.OUTRO || gamePhase === GAME_PHASES.VICTORY)
+    ) {
+        return null;
     }
 
     // Se il nemico NON boss è morto, mostra esplosione normale
@@ -86,7 +145,7 @@ export function Enemy({ enemyId }) {
             position={[position.x, position.y, position.z]}
             scale={scale}
         >
-            <group scale={[facingRight ? 1 : -1, 1, 1]}>
+            <group ref={innerGroupRef} scale={[facingRight ? 1 : -1, 1, 1]}>
                 {/* Torso */}
                 <mesh position={[0, 1.0, 0]}>
                     <boxGeometry args={[ENEMY.WIDTH + 0.1, 0.85, 0.35]} />
@@ -149,19 +208,53 @@ export function Enemy({ enemyId }) {
                     </mesh>
                 )}
 
-                {/* Aiming indicator - ACCORCIATO */}
-                {isAttacking && (
-                    <mesh position={[0.8, 1.0, 0]}>
-                        <boxGeometry args={[0.8, 0.02, 0.02]} />
-                        <meshStandardMaterial
-                            color={currentAccentColor}
-                            emissive={currentAccentColor}
-                            emissiveIntensity={0.8}
-                            transparent
-                            opacity={0.5}
-                        />
-                    </mesh>
-                )}
+                {/* Aiming indicator - charges with the wind-up.
+                    Length and intensity grow with aimTimer; once we cross the
+                    TELEGRAPH_RATIO threshold the laser turns to a brighter,
+                    full-length color and the eye flashes faster (handled in
+                    the alertLight pulse). This is the "this shot is coming"
+                    tell. */}
+                {isAttacking &&
+                    (() => {
+                        const ratio = Math.min(
+                            1,
+                            (enemy.aimTimer || 0) / BOSS.AIM_TIME,
+                        );
+                        const charging = ratio >= BOSS.TELEGRAPH_RATIO;
+                        const len = 0.4 + ratio * 1.1;
+                        const opacity = charging ? 0.9 : 0.35 + ratio * 0.4;
+                        const intensity = charging ? 1.8 : 0.6 + ratio * 0.6;
+                        return (
+                            <mesh position={[0.6 + len / 2, 1.0, 0]}>
+                                <boxGeometry
+                                    args={[len, charging ? 0.04 : 0.02, 0.02]}
+                                />
+                                <meshStandardMaterial
+                                    color={currentAccentColor}
+                                    emissive={currentAccentColor}
+                                    emissiveIntensity={intensity}
+                                    transparent
+                                    opacity={opacity}
+                                    toneMapped={false}
+                                />
+                            </mesh>
+                        );
+                    })()}
+
+                {/* Telegraph: bright red eye flash when about to fire */}
+                {isAttacking &&
+                    (enemy.aimTimer || 0) >=
+                        BOSS.AIM_TIME * BOSS.TELEGRAPH_RATIO && (
+                        <mesh position={[0.12, 1.65, 0.18]}>
+                            <boxGeometry args={[0.26, 0.16, 0.02]} />
+                            <meshBasicMaterial
+                                color={currentAccentColor}
+                                transparent
+                                opacity={0.85}
+                                toneMapped={false}
+                            />
+                        </mesh>
+                    )}
 
                 {/* Muzzle flash when shooting */}
                 {isAttacking && enemy.aimTimer >= BOSS.AIM_TIME * 0.9 && (
@@ -206,6 +299,19 @@ export function Enemy({ enemyId }) {
             <mesh position={[0, 0.01, 0]} rotation={[-Math.PI / 2, 0, 0]}>
                 <planeGeometry args={[0.9, 0.5]} />
                 <meshBasicMaterial color="#000000" transparent opacity={0.3} />
+            </mesh>
+
+            {/* Hit flash overlay (full-body white pulse) */}
+            <mesh position={[0, 1.0, 0.2]} renderOrder={10}>
+                <boxGeometry args={[ENEMY.WIDTH + 0.3, 1.9, 0.05]} />
+                <meshBasicMaterial
+                    ref={flashMatRef}
+                    color="#ffffff"
+                    transparent
+                    opacity={0}
+                    depthWrite={false}
+                    toneMapped={false}
+                />
             </mesh>
         </group>
     );
@@ -303,6 +409,9 @@ function DeathEffect({ position, isBoss }) {
     );
 }
 
+// Memoized export to avoid re-renders when an unrelated enemy changes
+const MemoEnemy = React.memo(Enemy);
+
 // Wrapper to render all enemies
 export function Enemies() {
     const enemies = useGameStore((state) => state.enemies);
@@ -310,7 +419,7 @@ export function Enemies() {
     return (
         <>
             {enemies.map((enemy) => (
-                <Enemy key={enemy.id} enemyId={enemy.id} />
+                <MemoEnemy key={enemy.id} enemyId={enemy.id} />
             ))}
         </>
     );

@@ -5,8 +5,9 @@
 
 import React, { useRef, Suspense } from 'react';
 import { useFrame } from '@react-three/fiber';
-import { useGameStore, selectCamera } from '../store/gameStore';
+import { useGameStore } from '../store/gameStore';
 import { WORLD } from '../constants/gameplayConstants';
+import { getRainCount } from '../utils/device';
 
 // Import components from backgroundElements
 import { ScifiBuilding } from './backgroundElements/ScifiBuilding';
@@ -40,17 +41,22 @@ const PALETTE = {
 // ============================================
 
 export function Background() {
-    const cameraPos = useGameStore(selectCamera);
     const buildingsRef = useRef();
     const rainRef = useRef();
-    const isMobile = 'ontouchstart' in window;
+    const rainCount = getRainCount();
 
+    // Read camera position via getState() inside the frame loop instead of
+    // subscribing to selectCamera. updateCamera() is called every frame by
+    // useCameraFollow with a fresh object reference — subscribing here would
+    // re-render the whole Background tree (posters, neon, hologram, …) 60
+    // times per second and cause stutter while moving.
     useFrame(() => {
+        const camPos = useGameStore.getState().camera.position;
         if (buildingsRef.current) {
-            buildingsRef.current.position.x = cameraPos.position.x * 0.15;
+            buildingsRef.current.position.x = camPos.x * 0.15;
         }
         if (rainRef.current) {
-            rainRef.current.position.x = cameraPos.position.x;
+            rainRef.current.position.x = camPos.x;
         }
     });
 
@@ -58,7 +64,7 @@ export function Background() {
         <group>
             <StreetBelow />
             <group ref={rainRef}>
-                <RainLines count={isMobile ? 300 : 600} />
+                <RainLines count={rainCount} />
             </group>
 
             {/* Main buildings group with parallax */}
@@ -69,28 +75,28 @@ export function Background() {
                         position={[-35, -2, 5]}
                         width={4}
                         height={6}
-                        imageSrc="textures/poster-1.jpg"
+                        imageSrc="textures/poster-1.webp"
                         showFrame={false}
                     />
                     <Poster
                         position={[-30, -2, 5]}
                         width={4}
                         height={6}
-                        imageSrc="textures/poster-2.jpg"
+                        imageSrc="textures/poster-2.webp"
                         showFrame={false}
                     />
                     <Poster
                         position={[-25, -2, 5]}
                         width={4}
                         height={6}
-                        imageSrc="textures/poster-3.jpg"
+                        imageSrc="textures/poster-3.webp"
                         showFrame={false}
                     />
                     <Poster
                         position={[-20, -2, 5]}
                         width={4}
                         height={6}
-                        imageSrc="textures/poster-4.jpg"
+                        imageSrc="textures/poster-4.webp"
                         showFrame={false}
                     />
 
@@ -119,14 +125,14 @@ export function Background() {
                         position={[52, 0, 5]}
                         width={7}
                         height={7}
-                        imageSrc="textures/poster-11.jpeg"
+                        imageSrc="textures/poster-11.webp"
                         showFrame={false}
                     />
                     <Poster
                         position={[60, 0, 5]}
                         width={7}
                         height={7}
-                        imageSrc="textures/poster-22.jpeg"
+                        imageSrc="textures/poster-22.webp"
                         showFrame={false}
                     />
 
@@ -152,10 +158,10 @@ export function Background() {
                         scale={0.2}
                         rotation={[0, Math.PI + 1.5, 0]}
                     />
-                    <NeonEvil position={[30, 0, 5]} scale={4} />
+                    <NeonEvil position={[29, -1.5, 5]} scale={4} />
                     <NeonSign1
-                        position={[27, 3.5, 5]}
-                        scale={1}
+                        position={[25.5, 2.5, 5]}
+                        scale={1.5}
                         rotation={[0, Math.PI, 0]}
                     />
                     <NeonDragon position={[-6, -1, 4]} scale={45} />

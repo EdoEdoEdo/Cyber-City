@@ -169,9 +169,48 @@ function ControlsHint() {
             }}
         >
             <span>
-                A/D or ←/→: Move • W/↑/Space: Jump • X: Shoot • Z: Shield • ESC:
-                Pause
+                A/D or ←/→: Move • W/↑/Space: Jump • X: Shoot • Z: Shield •
+                Shift/C: Dash • ESC: Pause
             </span>
+        </div>
+    );
+}
+
+// Compact list of controls used inside the pause modal.
+function ControlsBlock() {
+    const isTouch =
+        typeof window !== 'undefined' &&
+        ('ontouchstart' in window || navigator.maxTouchPoints > 0);
+
+    const rows = isTouch
+        ? [
+              ['Move', 'Joystick (left)'],
+              ['Jump', 'JUMP button'],
+              ['Shoot', 'SHOOT button'],
+              ['Shield', 'SHIELD button'],
+              ['Dash', 'DASH button'],
+          ]
+        : [
+              ['Move', 'A / D · ← / →'],
+              ['Jump', 'W · ↑ · Space'],
+              ['Shoot', 'X · J'],
+              ['Shield', 'Z · K'],
+              ['Dash', 'Shift · C'],
+              ['Pause', 'Esc · P'],
+              ['Skip cutscene', 'Space · Enter'],
+          ];
+
+    return (
+        <div style={styles.controlsBlock}>
+            <p style={styles.controlsHeader}>// CONTROLS</p>
+            <div style={styles.controlsList}>
+                {rows.map(([action, keys]) => (
+                    <div key={action} style={styles.controlsRow}>
+                        <span style={styles.controlsAction}>{action}</span>
+                        <span style={styles.controlsKeys}>{keys}</span>
+                    </div>
+                ))}
+            </div>
         </div>
     );
 }
@@ -222,7 +261,7 @@ export function UIOverlay() {
                 <HealthBar
                     current={boss.health}
                     max={boss.maxHealth}
-                    label="BOSS"
+                    label="CYBERPSYCHO"
                     color="#ff0033"
                     position={{ top: '20px', right: '20px' }}
                 />
@@ -233,6 +272,9 @@ export function UIOverlay() {
                 <div style={styles.overlay}>
                     <div style={styles.modal}>
                         <h1 style={styles.title}>PAUSED</h1>
+
+                        <ControlsBlock />
+
                         <button
                             style={styles.button}
                             onClick={togglePause}
@@ -253,6 +295,39 @@ export function UIOverlay() {
                         >
                             RESTART
                         </button>
+
+                        <div style={styles.creditsBlock}>
+                            <p style={styles.creditsLine}>
+                                Crafted by{' '}
+                                <a
+                                    href="https://www.edoedoedo.it/"
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    style={{
+                                        ...styles.creditsLink,
+                                        fontStyle: 'italic',
+                                        textDecoration: 'line-through',
+                                        textTransform: 'uppercase',
+                                        letterSpacing: 2,
+                                    }}
+                                >
+                                    edoedoedo
+                                </a>
+                                .
+                            </p>
+                            <p style={styles.creditsLineMuted}>
+                                Find more experiments on{' '}
+                                <a
+                                    href="https://github.com/EdoEdoEdo"
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    style={styles.creditsLink}
+                                >
+                                    GitHub
+                                </a>
+                                .
+                            </p>
+                        </div>
                     </div>
                 </div>
             )}
@@ -287,6 +362,43 @@ export function UIOverlay() {
                             VICTORY
                         </h1>
                         <p style={styles.subtitle}>Target eliminated</p>
+
+                        <div style={styles.creditsBlock}>
+                            <p style={styles.creditsLine}>
+                                Thanks for playing.
+                            </p>
+                            <p style={styles.creditsLine}>
+                                Crafted by{' '}
+                                <a
+                                    href="https://www.edoedoedo.it/"
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    style={{
+                                        ...styles.creditsLink,
+                                        fontStyle: 'italic',
+                                        textDecoration: 'line-through',
+                                        textTransform: 'uppercase',
+                                        letterSpacing: 2,
+                                    }}
+                                >
+                                    edoedoedo
+                                </a>
+                                .
+                            </p>
+                            <p style={styles.creditsLineMuted}>
+                                Find more experiments on{' '}
+                                <a
+                                    href="https://github.com/EdoEdoEdo"
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    style={styles.creditsLink}
+                                >
+                                    GitHub
+                                </a>
+                                .
+                            </p>
+                        </div>
+
                         <button
                             style={styles.button}
                             onClick={resetGame}
@@ -295,7 +407,7 @@ export function UIOverlay() {
                                 resetGame();
                             }}
                         >
-                            RESTART
+                            RUN IT AGAIN
                         </button>
                     </div>
                 </div>
@@ -353,6 +465,75 @@ const styles = {
         letterSpacing: 4,
         marginBottom: 40,
         textTransform: 'uppercase',
+    },
+
+    creditsBlock: {
+        margin: '0 auto 32px',
+        maxWidth: 360,
+        padding: '20px 24px',
+        border: '1px solid rgba(0, 255, 255, 0.2)',
+        borderRadius: 4,
+        backgroundColor: 'rgba(0, 255, 255, 0.04)',
+    },
+    controlsBlock: {
+        margin: '0 auto 28px',
+        maxWidth: 360,
+        padding: '16px 24px',
+        border: '1px solid rgba(0, 255, 255, 0.2)',
+        borderRadius: 4,
+        backgroundColor: 'rgba(0, 255, 255, 0.04)',
+        textAlign: 'left',
+    },
+    controlsHeader: {
+        color: '#00ffff',
+        fontFamily: "'Courier New', monospace",
+        fontSize: 11,
+        letterSpacing: 3,
+        margin: '0 0 12px',
+        textTransform: 'uppercase',
+    },
+    controlsList: {
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 6,
+    },
+    controlsRow: {
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'baseline',
+        gap: 16,
+        fontFamily: "'Courier New', monospace",
+        fontSize: 12,
+        letterSpacing: 1,
+    },
+    controlsAction: {
+        color: '#aaccff',
+        textTransform: 'uppercase',
+    },
+    controlsKeys: {
+        color: '#ffffff',
+        opacity: 0.85,
+    },
+    creditsLine: {
+        color: '#aaccff',
+        fontSize: 13,
+        letterSpacing: 1.5,
+        margin: '4px 0',
+        lineHeight: 1.5,
+    },
+    creditsLineMuted: {
+        color: '#666680',
+        fontSize: 12,
+        letterSpacing: 1.5,
+        margin: '12px 0 0',
+        lineHeight: 1.5,
+    },
+    creditsLink: {
+        color: '#00ffff',
+        textDecoration: 'none',
+        borderBottom: '1px solid rgba(0, 255, 255, 0.4)',
+        transition: 'color 0.2s, border-color 0.2s',
+        pointerEvents: 'auto',
     },
 
     button: {

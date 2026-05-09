@@ -6,9 +6,10 @@
 import React, { useState, useEffect } from 'react';
 import { useProgress } from '@react-three/drei';
 
-export function LoadingScreen({ onStart }) {
+export function LoadingScreen({ onStart, exiting = false }) {
     const { progress, loaded, total } = useProgress();
     const [isReady, setIsReady] = useState(false);
+    const [mounted, setMounted] = useState(false);
 
     // FIX 3: Considera pronto quando progress >= 100
     useEffect(() => {
@@ -18,6 +19,12 @@ export function LoadingScreen({ onStart }) {
         }
     }, [progress]);
 
+    // Trigger entrance fade-in on mount.
+    useEffect(() => {
+        const id = requestAnimationFrame(() => setMounted(true));
+        return () => cancelAnimationFrame(id);
+    }, []);
+
     const handleStart = () => {
         onStart();
     };
@@ -25,7 +32,13 @@ export function LoadingScreen({ onStart }) {
     const displayProgress = Math.min(Math.floor(progress), 100);
 
     return (
-        <div style={styles.container}>
+        <div
+            style={{
+                ...styles.container,
+                opacity: exiting || !mounted ? 0 : 1,
+                pointerEvents: exiting ? 'none' : 'auto',
+            }}
+        >
             {/* Background Image */}
             <div style={styles.backgroundImage} />
 
@@ -101,6 +114,7 @@ const styles = {
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
+        transition: 'opacity 1000ms ease-out',
     },
 
     backgroundImage: {
@@ -109,7 +123,7 @@ const styles = {
         left: 0,
         right: 0,
         bottom: 0,
-        backgroundImage: 'url(textures/loading-bg.jpg)',
+        backgroundImage: 'url(textures/loading-bg.webp)',
         backgroundSize: 'cover',
         backgroundPosition: 'center',
     },

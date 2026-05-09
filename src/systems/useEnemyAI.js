@@ -8,24 +8,20 @@ import { useCallback, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import {
     useGameStore,
-    selectAliveEnemies,
-    selectPlayerPosition,
     selectIsPaused,
     selectGamePhase,
-    selectCutscene,
 } from '../store/gameStore';
 import {
     ENEMY,
     ENEMY_STATES,
     GAME_PHASES,
 } from '../constants/gameplayConstants';
+import { getTimeScale } from './timeScale';
 
 export function useEnemyAI() {
-    const enemies = useGameStore(selectAliveEnemies);
-    const playerPosition = useGameStore(selectPlayerPosition);
+    // Subscribe ONLY to gating state.
     const isPaused = useGameStore(selectIsPaused);
     const gamePhase = useGameStore(selectGamePhase);
-    const cutscene = useGameStore(selectCutscene);
 
     const updateEnemy = useGameStore((state) => state.updateEnemy);
     const spawnProjectile = useGameStore((state) => state.spawnProjectile);
@@ -42,8 +38,8 @@ export function useEnemyAI() {
             gamePhase === GAME_PHASES.PLAYING &&
             bossCutsceneTriggeredRef.current
         ) {
-            // Check if we're back to initial state (player respawned)
-            const boss = enemies.find((e) => e.isBoss);
+            const enemies = useGameStore.getState().enemies;
+            const boss = enemies.find((e) => e.isBoss && !e.isDead);
             if (boss && boss.state === 'PATROL') {
                 bossCutsceneTriggeredRef.current = false;
             }
@@ -52,7 +48,7 @@ export function useEnemyAI() {
 
     // Check if player is in detection range
     const canSeePlayer = useCallback(
-        (enemyPos, facingRight) => {
+        (enemyPos, facingRight, playerPosition) => {
             const dx = playerPosition.x - enemyPos.x;
             const dy = playerPosition.y - enemyPos.y;
             const distance = Math.sqrt(dx * dx + dy * dy);
@@ -69,29 +65,39 @@ export function useEnemyAI() {
 
             return true;
         },
-        [playerPosition],
+        [],
     );
 
     // Check if player is in attack range
-    const canAttackPlayer = useCallback(
-        (enemyPos) => {
-            const dx = playerPosition.x - enemyPos.x;
-            const dy = playerPosition.y - enemyPos.y;
-            const distance = Math.sqrt(dx * dx + dy * dy);
+    const canAttackPlayer = useCallback((enemyPos, playerPosition) => {
+        const dx = playerPosition.x - enemyPos.x;
+        const dy = playerPosition.y - enemyPos.y;
+        const distance = Math.sqrt(dx * dx + dy * dy);
 
-            return distance <= ENEMY.ATTACK_RANGE && Math.abs(dy) < 3;
-        },
-        [playerPosition],
-    );
+        return distance <= ENEMY.ATTACK_RANGE && Math.abs(dy) < 3;
+    }, []);
 
     // Main AI update loop
     useFrame((_, delta) => {
         if (isPaused) return;
 
-        // During cutscene, enemies don't move
-        if (gamePhase === GAME_PHASES.CUTSCENE) return;
+        // Stop AI on terminal phases. Without this, projectiles spawned
+        // before the player died kept reaching the screen and the boss
+        // would keep firing through the GAME_OVER overlay.
+        if (
+            gamePhase === GAME_PHASES.CUTSCENE ||
+            gamePhase === GAME_PHASES.BOSS_DEATH ||
+            gamePhase === GAME_PHASES.GAME_OVER ||
+            gamePhase === GAME_PHASES.VICTORY ||
+            gamePhase === GAME_PHASES.OUTRO
+        )
+            return;
 
-        const dt = Math.min(delta, 0.1);
+        const state = useGameStore.getState();
+        const playerPosition = state.player.position;
+        const enemies = state.enemies;
+
+        const dt = Math.min(delta, 0.1) * getTimeScale();
 
         enemies.forEach((enemy) => {
             if (enemy.isDead) return;
@@ -119,7 +125,7 @@ export function useEnemyAI() {
                 // -----------------------------------------
                 case ENEMY_STATES.IDLE:
                     // Just stand still, check for player
-                    if (canSeePlayer({ x, y }, facingRight)) {
+                    if (canSeePlayer({ x, y }, facingRight, playerPosition)) {
                         // BOSS: Trigger cutscene instead of going to ALERT
                         if (isBoss && !bossCutsceneTriggeredRef.current) {
                             bossCutsceneTriggeredRef.current = true;
@@ -156,7 +162,7 @@ export function useEnemyAI() {
                     }
 
                     // Check for player
-                    if (canSeePlayer({ x, y }, facingRight)) {
+                    if (canSeePlayer({ x, y }, facingRight, playerPosition)) {
                         // BOSS: Trigger cutscene instead of going to ALERT
                         if (isBoss && !bossCutsceneTriggeredRef.current) {
                             bossCutsceneTriggeredRef.current = true;
@@ -193,8 +199,8 @@ export function useEnemyAI() {
                     alertTimer += dt;
 
                     // If player still visible and in range, go to attack
-                    if (canSeePlayer({ x, y }, facingRight)) {
-                        if (canAttackPlayer({ x, y })) {
+                    if (canSeePlayer({ x, y }, facingRight, playerPosition)) {
+                        if (canAttackPlayer({ x, y }, playerPosition)) {
                             state = ENEMY_STATES.ATTACK;
                             aimTimer = 0;
                         }
@@ -237,8 +243,8 @@ export function useEnemyAI() {
 
                     // If player out of range or hidden, go back to alert
                     if (
-                        !canSeePlayer({ x, y }, facingRight) ||
-                        !canAttackPlayer({ x, y })
+                        !canSeePlayer({ x, y }, facingRight, playerPosition) ||
+                        !canAttackPlayer({ x, y }, playerPosition)
                     ) {
                         state = ENEMY_STATES.ALERT;
                         alertTimer = 0;

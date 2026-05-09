@@ -5,10 +5,16 @@
 
 import React, { useMemo } from 'react';
 import { useGLTF } from '@react-three/drei';
+import { DRACO_DECODER_PATH } from '../../utils/gltf';
 
-// Generic neon sign component
-function NeonGLB({ modelPath, position, scale = 1, rotation = [0, 0, 0] }) {
-    const { scene } = useGLTF(modelPath);
+// Generic neon sign component (memoized: GLB clone is expensive)
+const NeonGLB = React.memo(function NeonGLB({
+    modelPath,
+    position,
+    scale = 1,
+    rotation = [0, 0, 0],
+}) {
+    const { scene } = useGLTF(modelPath, DRACO_DECODER_PATH);
     const clonedScene = useMemo(() => scene.clone(), [scene]);
 
     return (
@@ -16,7 +22,7 @@ function NeonGLB({ modelPath, position, scale = 1, rotation = [0, 0, 0] }) {
             <primitive object={clonedScene} />
         </group>
     );
-}
+});
 
 // Individual exports
 export function NeonFun({ position, scale = 1, rotation = [0, 0, 0] }) {
@@ -119,12 +125,12 @@ export function NeonOpen({ position, scale = 1, rotation = [0, 0, 0] }) {
 }
 
 // Preload all models
-useGLTF.preload('models/neon_fun.glb');
-useGLTF.preload('models/chinese_neon_dragon_sign.glb');
-useGLTF.preload('models/neon_sign.glb');
-useGLTF.preload('models/neon_sign_2.glb');
-useGLTF.preload('models/cassete_neon.glb');
-useGLTF.preload('models/neon_ramen_soup_sign.glb');
-useGLTF.preload('models/evil_neon_sign.glb');
-useGLTF.preload('models/punk_rock_neon_sign.glb');
-useGLTF.preload('models/neon_open_sign.glb');
+useGLTF.preload('models/neon_fun.glb', DRACO_DECODER_PATH);
+useGLTF.preload('models/chinese_neon_dragon_sign.glb', DRACO_DECODER_PATH);
+useGLTF.preload('models/neon_sign.glb', DRACO_DECODER_PATH);
+useGLTF.preload('models/neon_sign_2.glb', DRACO_DECODER_PATH);
+useGLTF.preload('models/cassete_neon.glb', DRACO_DECODER_PATH);
+useGLTF.preload('models/neon_ramen_soup_sign.glb', DRACO_DECODER_PATH);
+useGLTF.preload('models/evil_neon_sign.glb', DRACO_DECODER_PATH);
+useGLTF.preload('models/punk_rock_neon_sign.glb', DRACO_DECODER_PATH);
+useGLTF.preload('models/neon_open_sign.glb', DRACO_DECODER_PATH);

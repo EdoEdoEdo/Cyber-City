@@ -16,6 +16,7 @@ export function useInputSystem() {
         jump: false,
         shoot: false,
         shield: false,
+        dash: false,
     });
 
     // -----------------------------------------
@@ -66,6 +67,13 @@ export function useInputSystem() {
                 }
             }
 
+            if (INPUT.KEYS.DASH.includes(key)) {
+                if (!pressedRef.current.dash) {
+                    setInput({ dash: true, dashPressed: true });
+                    pressedRef.current.dash = true;
+                }
+            }
+
             if (INPUT.KEYS.PAUSE.includes(key)) {
                 togglePause();
             }
@@ -94,6 +102,10 @@ export function useInputSystem() {
             if (INPUT.KEYS.SHIELD.includes(key)) {
                 setInput({ shield: false });
                 pressedRef.current.shield = false;
+            }
+            if (INPUT.KEYS.DASH.includes(key)) {
+                setInput({ dash: false });
+                pressedRef.current.dash = false;
             }
         },
         [setInput],

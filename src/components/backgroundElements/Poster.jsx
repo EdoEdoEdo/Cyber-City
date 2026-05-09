@@ -6,7 +6,7 @@
 import React, { useMemo } from 'react';
 import * as THREE from 'three';
 
-export function Poster({
+function PosterImpl({
     position,
     width = 3,
     height = 4,
@@ -42,12 +42,18 @@ export function Poster({
                 <>
                     {/* Top */}
                     <mesh position={[0, height / 2 + frameThickness / 2, 0.01]}>
-                        <planeGeometry args={[width + frameThickness * 2, frameThickness]} />
+                        <planeGeometry
+                            args={[width + frameThickness * 2, frameThickness]}
+                        />
                         <meshBasicMaterial color={frameColor} />
                     </mesh>
                     {/* Bottom */}
-                    <mesh position={[0, -height / 2 - frameThickness / 2, 0.01]}>
-                        <planeGeometry args={[width + frameThickness * 2, frameThickness]} />
+                    <mesh
+                        position={[0, -height / 2 - frameThickness / 2, 0.01]}
+                    >
+                        <planeGeometry
+                            args={[width + frameThickness * 2, frameThickness]}
+                        />
                         <meshBasicMaterial color={frameColor} />
                     </mesh>
                     {/* Left */}
@@ -65,3 +71,5 @@ export function Poster({
         </group>
     );
 }
+
+export const Poster = React.memo(PosterImpl);

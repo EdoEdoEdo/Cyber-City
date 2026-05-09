@@ -12,6 +12,7 @@ import {
     holographicVertexShader,
     holographicFragmentShader,
 } from './constants';
+import { DRACO_DECODER_PATH } from '../../utils/gltf';
 
 export function Hologram({
     position,
@@ -20,7 +21,7 @@ export function Hologram({
     modelPath = 'models/leggings_girl.glb',
 }) {
     const groupRef = useRef();
-    const { scene } = useGLTF(modelPath);
+    const { scene } = useGLTF(modelPath, DRACO_DECODER_PATH);
 
     const holographicMaterial = useMemo(() => {
         return new THREE.ShaderMaterial({
@@ -69,4 +70,4 @@ export function Hologram({
 }
 
 // Preload default model
-useGLTF.preload('models/leggings_girl.glb');
+useGLTF.preload('models/leggings_girl.glb', DRACO_DECODER_PATH);

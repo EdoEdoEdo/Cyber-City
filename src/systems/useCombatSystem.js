@@ -1,14 +1,15 @@
 /**
  * Combat System
- * Handles projectile updates, collision detection, and damage
+ * Handles projectile updates, collision detection, and damage.
+ *
+ * Projectiles live in a mutable pool (systems/projectilePool.js); this
+ * system advances them, runs collisions and despawns expired ones without
+ * touching the Zustand store on every frame.
  */
 
 import { useFrame } from '@react-three/fiber';
 import {
     useGameStore,
-    selectProjectiles,
-    selectPlayer,
-    selectAliveEnemies,
     selectIsPaused,
     selectGamePhase,
 } from '../store/gameStore';
@@ -19,50 +20,89 @@ import {
     HEALTH,
     GAME_PHASES,
 } from '../constants/gameplayConstants';
+import { tickProjectiles, forEachActive } from './projectilePool';
+import { spawnSparks } from './particlePool';
+import {
+    spawnPickup,
+    tickPickups,
+    forEachPickup,
+    despawnPickup,
+    PICKUP_RADIUS_VALUE,
+} from './pickupPool';
+import { getTimeScale } from './timeScale';
 
 export function useCombatSystem() {
-    const projectiles = useGameStore(selectProjectiles);
-    const player = useGameStore(selectPlayer);
-    const enemies = useGameStore(selectAliveEnemies);
+    // Subscribe ONLY to gating state. player/enemies are read via
+    // getState() inside the frame loop — they change every frame so
+    // subscribing would cause GameSystems to re-render at 60 fps.
     const isPaused = useGameStore(selectIsPaused);
     const gamePhase = useGameStore(selectGamePhase);
 
-    const updateProjectile = useGameStore((state) => state.updateProjectile);
-    const removeProjectile = useGameStore((state) => state.removeProjectile);
     const damagePlayer = useGameStore((state) => state.damagePlayer);
     const damageEnemy = useGameStore((state) => state.damageEnemy);
+    const refillShield = useGameStore((state) => state.refillShield);
 
     useFrame((_, delta) => {
         if (isPaused) return;
-        if (gamePhase === GAME_PHASES.CUTSCENE) return;
+        if (
+            gamePhase === GAME_PHASES.CUTSCENE ||
+            gamePhase === GAME_PHASES.BOSS_DEATH ||
+            gamePhase === GAME_PHASES.GAME_OVER ||
+            gamePhase === GAME_PHASES.VICTORY ||
+            gamePhase === GAME_PHASES.OUTRO
+        )
+            return;
 
-        const dt = Math.min(delta, 0.1);
+        const state = useGameStore.getState();
+        const player = state.player;
+        // Filter alive enemies inline (avoids selectAliveEnemies allocating
+        // a fresh array every Zustand notification — here we only allocate
+        // one array per frame, scoped to this useFrame).
+        const enemies = state.enemies.filter((e) => !e.isDead);
 
-        projectiles.forEach((projectile) => {
-            let { x, y, z } = projectile.position;
-            const { x: dirX, y: dirY } = projectile.velocity;
+        const dt = Math.min(delta, 0.1) * getTimeScale();
 
-            // Update position
-            x += dirX * PROJECTILE.SPEED * dt;
-            y += dirY * PROJECTILE.SPEED * dt;
-
-            // Update lifetime
-            const lifetime = projectile.lifetime + dt;
-
-            // Remove if too old
-            if (lifetime > PROJECTILE.LIFETIME) {
-                removeProjectile(projectile.id);
-                return;
+        // 1) Move every active projectile + auto-despawn by lifetime.
+        const expiredEnemyShots = [];
+        tickProjectiles(dt, (slot) => {
+            // Lifetime-expired enemy projectile -> chance to drop a pickup
+            if (!slot.isPlayerProjectile) {
+                expiredEnemyShots.push({
+                    x: slot.position.x,
+                    y: slot.position.y,
+                });
             }
+        });
+        for (const p of expiredEnemyShots) {
+            if (Math.random() < 0.25) {
+                spawnPickup({
+                    position: { x: p.x, y: p.y, z: 0 },
+                    type: 'shield',
+                });
+            }
+        }
 
-            // -----------------------------------------
-            // COLLISION DETECTION
-            // -----------------------------------------
+        // 1b) Pickups physics + collection
+        tickPickups(dt);
+        forEachPickup((p) => {
+            const dx = p.position.x - player.position.x;
+            const dy = p.position.y - (player.position.y + 0.9);
+            if (
+                dx * dx + dy * dy <=
+                PICKUP_RADIUS_VALUE * PICKUP_RADIUS_VALUE * 4
+            ) {
+                refillShield();
+                spawnSparks(p.position, 8, 1, 3);
+                despawnPickup(p);
+            }
+        });
 
-            if (projectile.isPlayerProjectile) {
-                // Player projectile - check collision with enemies
+        // 2) Collision pass.
+        forEachActive((slot) => {
+            const { x, y } = slot.position;
+
+            if (slot.isPlayerProjectile) {
                 for (const enemy of enemies) {
-                    // Check if enemy is shielding
                     if (enemy.isShielding) {
                         const projectileFromRight = x > enemy.position.x;
                         const shieldBlocks =
@@ -85,13 +125,12 @@ export function useCombatSystem() {
                                 { width: 1.2, height: 1.8 },
                             )
                         ) {
-                            // Projectile blocked by enemy shield
-                            removeProjectile(projectile.id);
+                            spawnSparks({ x, y }, 6, 0, 5);
+                            slot.active = false;
                             return;
                         }
                     }
 
-                    // Check collision with enemy body
                     if (
                         checkCollision(
                             { x, y },
@@ -103,81 +142,80 @@ export function useCombatSystem() {
                             { width: ENEMY.WIDTH, height: ENEMY.HEIGHT },
                         )
                     ) {
-                        // Damage enemy (shield check is in damageEnemy)
                         damageEnemy(enemy.id, HEALTH.PLAYER_DAMAGE);
-                        removeProjectile(projectile.id);
+                        spawnSparks({ x, y }, 12, 0, 6);
+                        slot.active = false;
                         return;
                     }
                 }
             } else {
-                // Enemy projectile - check collision with player
-                if (!player.isDead) {
-                    // Check if player shield blocks
-                    if (player.isShielding) {
-                        const projectileFromRight = x > player.position.x;
-                        const shieldBlocks =
-                            player.facingRight === projectileFromRight;
+                if (player.isDead) return;
 
-                        if (
-                            shieldBlocks &&
-                            checkCollision(
-                                { x, y },
-                                {
-                                    width: PROJECTILE.WIDTH,
-                                    height: PROJECTILE.HEIGHT,
-                                },
-                                {
-                                    x:
-                                        player.position.x +
-                                        (player.facingRight ? 0.8 : -0.8),
-                                    y: player.position.y + 0.9,
-                                },
-                                { width: 1.2, height: 1.8 },
-                            )
-                        ) {
-                            // Projectile blocked by player shield
-                            removeProjectile(projectile.id);
-                            return;
-                        }
-                    }
+                if (player.isShielding) {
+                    const projectileFromRight = x > player.position.x;
+                    const shieldBlocks =
+                        player.facingRight === projectileFromRight;
 
-                    // Check collision with player body
                     if (
+                        shieldBlocks &&
                         checkCollision(
                             { x, y },
                             {
                                 width: PROJECTILE.WIDTH,
                                 height: PROJECTILE.HEIGHT,
                             },
-                            player.position,
-                            { width: PLAYER.WIDTH, height: PLAYER.HEIGHT },
+                            {
+                                x:
+                                    player.position.x +
+                                    (player.facingRight ? 0.8 : -0.8),
+                                y: player.position.y + 0.9,
+                            },
+                            { width: 1.2, height: 1.8 },
                         )
                     ) {
-                        // Damage player (not instant kill anymore)
-                        if (!player.isShielding) {
-                            damagePlayer(HEALTH.BOSS_DAMAGE);
+                        spawnSparks({ x, y }, 8, 1, 5);
+                        // Shielded enemy shots have a higher pickup drop chance
+                        if (Math.random() < 0.45) {
+                            spawnPickup({
+                                position: { x, y, z: 0 },
+                                velocity: {
+                                    x: (Math.random() - 0.5) * 2,
+                                    y: 4,
+                                },
+                                type: 'shield',
+                            });
                         }
-                        removeProjectile(projectile.id);
+                        slot.active = false;
                         return;
                     }
                 }
-            }
 
-            // Update projectile position
-            updateProjectile(projectile.id, {
-                position: { x, y, z },
-                lifetime,
-            });
+                if (
+                    checkCollision(
+                        { x, y },
+                        {
+                            width: PROJECTILE.WIDTH,
+                            height: PROJECTILE.HEIGHT,
+                        },
+                        player.position,
+                        { width: PLAYER.WIDTH, height: PLAYER.HEIGHT },
+                    )
+                ) {
+                    if (!player.isShielding && !player.isInvulnerable) {
+                        damagePlayer(HEALTH.BOSS_DAMAGE);
+                        spawnSparks({ x, y }, 10, 1, 5);
+                    } else {
+                        // Dodged via i-frames
+                        spawnSparks({ x, y }, 6, 2, 4);
+                    }
+                    slot.active = false;
+                }
+            }
         });
     });
 }
 
-// ===========================================
-// COLLISION UTILITIES
-// ===========================================
-
 function checkCollision(pos1, size1, pos2, size2) {
-    // AABB collision detection
     const halfWidth1 = size1.width / 2;
     const halfWidth2 = size2.width / 2;
 
@@ -193,10 +231,6 @@ function checkCollision(pos1, size1, pos2, size2) {
 
     return left1 < right2 && right1 > left2 && bottom1 < top2 && top1 > bottom2;
 }
-
-// ===========================================
-// HIT DETECTION UTILITY (for external use)
-// ===========================================
 
 export function checkPlayerEnemyCollision(playerPos, enemyPos) {
     return checkCollision(

@@ -23,6 +23,12 @@ export const PLAYER = {
     SHIELD_DURATION: 2,
     SHIELD_COOLDOWN: 3,
 
+    // Dash
+    DASH_SPEED: 18,
+    DASH_DURATION: 0.06,
+    DASH_COOLDOWN: 0.55,
+    DASH_IFRAMES: 0.09,
+
     WIDTH: 0.6,
     HEIGHT: 1.8,
 
@@ -36,8 +42,8 @@ export const PLAYER = {
 // ===========================================
 
 export const HEALTH = {
-    PLAYER_MAX: 50,
-    BOSS_MAX: 50,
+    PLAYER_MAX: 100,
+    BOSS_MAX: 100,
     PLAYER_DAMAGE: 5,
     BOSS_DAMAGE: 10,
 };
@@ -80,7 +86,7 @@ export const BOSS = {
 
     // Timings
     AIM_TIME: 0.5,
-    SHOOT_COOLDOWN: 1.0,
+    SHOOT_COOLDOWN: 1.3,
     SHIELD_DURATION: 1.5,
     SHIELD_COOLDOWN: 4,
     JUMP_COOLDOWN: 2,
@@ -99,6 +105,21 @@ export const BOSS = {
     // Cutscene
     CUTSCENE_DURATION: 5.2,
     DEATH_CUTSCENE_DURATION: 5.0, // ← Allungato a 5 secondi
+
+    // Hit reactions
+    HIT_STUN: 0.05, // freeze on damage (short, just for impact)
+    STUN_RESIST: 0.55, // immune to stun for this long after one
+    PHASE_2_HP_RATIO: 0.5, // <= 50% HP triggers phase change
+    PHASE_2_SPEED_MULT: 1.35,
+    PHASE_2_COOLDOWN_MULT: 0.6,
+    PHASE_2_ACCENT: '#ff00aa',
+
+    // Telegraph (windup tell before shot)
+    TELEGRAPH_RATIO: 0.55, // fraction of AIM_TIME at which tell starts
+
+    // Combos
+    COMBO_BURST_SHOTS: 3,
+    COMBO_BURST_INTERVAL: 0.2,
 };
 
 // ===========================================
@@ -144,7 +165,7 @@ export const PROJECTILE = {
 
 export const WORLD = {
     LEVEL_START_X: -20,
-    LEVEL_END_X: 50,
+    LEVEL_END_X: 56,
     GROUND_Y: 0,
     DEATH_Y: -7,
 
@@ -178,7 +199,7 @@ export const CAMERA = {
     VERTICAL_OFFSET: 2,
 
     MIN_X: -18,
-    MAX_X: 45,
+    MAX_X: 51,
 
     CUTSCENE_ZOOM: 8,
     CUTSCENE_ZOOM_SPEED: 3,
@@ -219,6 +240,7 @@ export const GAME_PHASES = {
     CUTSCENE: 'CUTSCENE',
     BOSS_FIGHT: 'BOSS_FIGHT',
     BOSS_DEATH: 'BOSS_DEATH',
+    OUTRO: 'OUTRO',
     PAUSED: 'PAUSED',
     GAME_OVER: 'GAME_OVER',
     VICTORY: 'VICTORY',
@@ -235,6 +257,7 @@ export const INPUT = {
         JUMP: ['ArrowUp', 'KeyW', 'Space'],
         SHOOT: ['KeyX', 'KeyJ'],
         SHIELD: ['KeyZ', 'KeyK'],
+        DASH: ['ShiftLeft', 'ShiftRight', 'KeyC'],
         PAUSE: ['Escape', 'KeyP'],
     },
 
